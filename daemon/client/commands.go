@@ -4,9 +4,11 @@ import (
 	"encoding/gob"
 	"mst-cli/ipc/types"
 	"net"
+
+	"github.com/anacrolix/torrent"
 )
 
-func HandleCommands(msg *types.Packet, torrentClient string, conn net.Conn) {
+func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.Conn) {
 	enc := gob.NewEncoder(conn)
 	var res any
 
@@ -28,27 +30,48 @@ func HandleCommands(msg *types.Packet, torrentClient string, conn net.Conn) {
 	enc.Encode(res)
 }
 
-func AddTorrent(msg *types.Packet, torrentClient string) types.AddTorrentResponse {
-	return types.AddTorrentResponse{}
+func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) types.AddTorrentResponse {
+	t, err := torrentClient.AddTorrentFromFile(msg.Payload.(types.AddTorrentRequest).Path)
+
+	res := types.AddTorrentResponse{}
+	res.Err = err
+	if err != nil {
+		return res
+	}
+
+	res.ID = t.InfoHash().String()
+	return res
 }
 
-func RemoveTorrent(msg *types.Packet, torrentClient string) types.ResponsePayload {
+func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
+	request := msg.Payload.(types.RemoveTorrentRequest)
+	torrents := torrentClient.Torrents()
 
-	return types.ResponsePayload{}
+	for _, t := range torrents {
+		if t.InfoHash().String() == request.ID {
+			t.Drop()
+		}
+	}
+
+	return types.ResponsePayload{
+		Err: nil,
+	}
 }
 
-func ListTorrents(msg *types.Packet, torrentClient string) types.ListTorrentsResponse {
+func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) types.ListTorrentsResponse {
+	// torrents := torrentClient.Torrents()
+
 	return types.ListTorrentsResponse{}
 }
 
-func SelectFilesToDownload(msg *types.Packet, torrentClient string) types.ResponsePayload {
+func SelectFilesToDownload(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
 	return types.ResponsePayload{}
 }
 
-func PrioritizeFiles(msg *types.Packet, torrentClient string) types.ResponsePayload {
+func PrioritizeFiles(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
 	return types.ResponsePayload{}
 }
 
-func SequentialDownload(msg *types.Packet, torrentClient string) types.ResponsePayload {
+func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
 	return types.ResponsePayload{}
 }

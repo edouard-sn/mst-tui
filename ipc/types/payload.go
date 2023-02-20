@@ -3,7 +3,7 @@ package types
 import "encoding/gob"
 
 type ResponsePayload struct {
-	err error
+	Err error
 }
 
 type AddTorrentRequest struct {
@@ -19,6 +19,7 @@ type RemoveTorrentRequest struct {
 }
 
 type ListTorrentsRequest struct{}
+
 type ListTorrentsResponse struct {
 	ResponsePayload
 	// Torrents []Torrent

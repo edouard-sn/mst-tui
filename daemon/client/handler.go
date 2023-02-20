@@ -5,9 +5,11 @@ import (
 	"io"
 	"mst-cli/ipc/types"
 	"net"
+
+	"github.com/anacrolix/torrent"
 )
 
-func handle(torrentClient string, conn net.Conn) error {
+func handle(torrentClient *torrent.Client, conn net.Conn) error {
 	var message *types.Packet = nil
 
 	dec := gob.NewDecoder(conn)
@@ -25,7 +27,7 @@ func handle(torrentClient string, conn net.Conn) error {
 
 }
 
-func HandlerWithTorrentClientWrapper(torrentClient string) func(conn net.Conn) error {
+func HandlerWithTorrentClientWrapper(torrentClient *torrent.Client) func(conn net.Conn) error {
 	return func(conn net.Conn) error {
 		return handle(torrentClient, conn)
 	}

@@ -5,6 +5,8 @@ import (
 	"mst-cli/daemon/client"
 	"mst-cli/ipc/server"
 	"mst-cli/ipc/types"
+
+	"github.com/anacrolix/torrent"
 )
 
 func must(err error, msg string) {
@@ -14,12 +16,14 @@ func must(err error, msg string) {
 }
 
 func main() {
+	torrentClient, err := torrent.NewClient(torrent.NewDefaultClientConfig()) // NOTE: wawi look how many fucks we are giving for the config rn
+	must(err, "couldn't initialize torrent client: "+err.Error())
 
 	types.RegisterEveryPayloadToGob()
 
 	server := &server.SocketServer{
 		SocketPath:    "/tmp/mst.sock",
-		ClientHandler: client.HandlerWithTorrentClientWrapper("placeholder"),
+		ClientHandler: client.HandlerWithTorrentClientWrapper(torrentClient),
 	}
 	server.Start()
 	server.ManageClients()
