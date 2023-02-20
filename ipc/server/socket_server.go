@@ -7,7 +7,6 @@ import (
 )
 
 // Minimal unix socket server that will run ClientHandler on every connected client.
-// This handler takes a channel as a parameter to communicate with the rest of your server.
 type SocketServer struct {
 	SocketPath    string
 	ClientHandler func(net.Conn) error
