@@ -15,14 +15,11 @@ func handle(torrentClient *torrent.Client, conn net.Conn) error {
 	dec := gob.NewDecoder(conn)
 
 	for {
-		if message == nil {
-			message = &types.Packet{}
-			if err := dec.Decode(message); err != nil && err != io.EOF {
-				return err
-			}
-		} else {
-			HandleCommands(message, torrentClient, conn)
+		message = &types.Packet{}
+		if err := dec.Decode(message); err != nil && err != io.EOF {
+			return err
 		}
+		HandleCommands(message, torrentClient, conn)
 	}
 
 }
