@@ -95,16 +95,15 @@ func SelectFilesToDownload(msg *types.Packet, torrentClient *torrent.Client) (re
 		}
 	}
 
+OUTER:
 	for _, f := range requestedTorrent.Files() {
 		for _, fileName := range request.FileIDs {
-			if f.DisplayPath() == fileName {
-				if f.Priority() == torrent.PiecePriorityNone {
-					f.Download()
-				}
-			} else {
-				f.SetPriority(torrent.PiecePriorityNone)
+			if f.Priority() == torrent.PiecePriorityNone && f.DisplayPath() == fileName {
+				f.Download()
+				continue OUTER
 			}
 		}
+		f.SetPriority(torrent.PiecePriorityNone)
 	}
 	return types.ResponsePayload{}
 }
