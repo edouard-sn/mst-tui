@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/gob"
+	"fmt"
 	"mst-cli/ipc/types"
 	"net"
 
@@ -27,18 +28,20 @@ func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.C
 		res = SequentialDownload(msg, torrentClient)
 	}
 
-	enc.Encode(res)
+	err := enc.Encode(res)
+	if err != nil {
+		fmt.Printf("are you fucking kidding me, gob.Encode failed: %v", err)
+	}
 }
 
-func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) types.AddTorrentResponse {
+func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.AddTorrentResponse) {
 	t, err := torrentClient.AddTorrentFromFile(msg.Payload.(types.AddTorrentRequest).Path)
 
-	res := types.AddTorrentResponse{}
 	res.Err = err
 	if err != nil {
 		return res
 	}
-
+	t.DownloadAll()
 	res.ID = t.InfoHash().String()
 	return res
 }
@@ -50,6 +53,7 @@ func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) types.Respo
 	for _, t := range torrents {
 		if t.InfoHash().String() == request.ID {
 			t.Drop()
+			break
 		}
 	}
 
@@ -58,20 +62,85 @@ func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) types.Respo
 	}
 }
 
-func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) types.ListTorrentsResponse {
-	// torrents := torrentClient.Torrents()
+func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) (res types.ListTorrentsResponse) {
+	torrents := torrentClient.Torrents()
+	res.Torrents = make([]types.CondensedTorrent, len(torrents))
 
-	return types.ListTorrentsResponse{}
+	for i, t := range torrents {
+
+		filePaths := make([]string, len(t.Files()))
+		for j, file := range t.Files() {
+			filePaths[j] = file.DisplayPath() // NOTE: Si dieu le veut c'est pas mal
+		}
+
+		receivedBytes := t.Stats().BytesReadData
+		res.Torrents[i] = types.CondensedTorrent{
+			Name:            t.Name(),
+			FileNames:       filePaths, // good enough
+			BytesDownloaded: (&receivedBytes).Int64(),
+			TotalBytes:      t.Length(),
+		}
+	}
+
+	return res
 }
 
-func SelectFilesToDownload(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
+func SelectFilesToDownload(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
+	request := msg.Payload.(types.SelectFilesToDownloadRequest)
+	var requestedTorrent *torrent.Torrent
+	for _, t := range torrentClient.Torrents() {
+		if t.InfoHash().String() == request.TorrentID {
+			requestedTorrent = t
+			break
+		}
+	}
+
+	for _, f := range requestedTorrent.Files() {
+		for _, fileName := range request.FileIDs {
+			if f.DisplayPath() == fileName {
+				if f.Priority() == torrent.PiecePriorityNone {
+					f.Download()
+				}
+			} else {
+				f.SetPriority(torrent.PiecePriorityNone)
+			}
+		}
+	}
 	return types.ResponsePayload{}
 }
 
-func PrioritizeFiles(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
+func PrioritizeFiles(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
+	// NOTE: Will probably fuck off for now
 	return types.ResponsePayload{}
 }
 
-func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) types.ResponsePayload {
-	return types.ResponsePayload{}
+// NOTE: This will be fake sequential download, it will prioritize the 15 first percent of the download
+// NOTE: I can probably make it work to prioritize along the way we'll see about all this
+func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
+	request := msg.Payload.(types.SequentialDownloadRequest)
+	var requestedTorrent *torrent.Torrent
+	fileName := "lol"
+
+	for _, t := range torrentClient.Torrents() {
+		if t.InfoHash().String() == request.ID {
+			requestedTorrent = t
+			break
+		}
+	}
+
+	for _, f := range requestedTorrent.Files() {
+		if f.DisplayPath() == fileName {
+			pieceBytesRatio := int64(requestedTorrent.NumPieces()) / requestedTorrent.Length()
+			firstPiece := f.Offset() * pieceBytesRatio
+			lastPiece := (f.Offset() + f.Length()) * pieceBytesRatio
+
+			for i := firstPiece; i <= lastPiece*15/100; i++ {
+				requestedTorrent.Piece(int(i)).SetPriority(torrent.PiecePriorityNow)
+			}
+		}
+	}
+
+	return types.ResponsePayload{
+		Err: nil,
+	}
 }

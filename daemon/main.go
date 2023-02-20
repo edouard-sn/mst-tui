@@ -16,6 +16,7 @@ func must(err error, msg string) {
 }
 
 func main() {
+	// TODO: Change DataDir in cfg :(
 	torrentClient, err := torrent.NewClient(torrent.NewDefaultClientConfig()) // NOTE: wawi look how many fucks we are giving for the config rn
 	must(err, "couldn't initialize torrent client: "+err.Error())
 

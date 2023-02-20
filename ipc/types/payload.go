@@ -22,11 +22,12 @@ type ListTorrentsRequest struct{}
 
 type ListTorrentsResponse struct {
 	ResponsePayload
-	// Torrents []Torrent
+	Torrents []CondensedTorrent
 }
 
 type SelectFilesToDownloadRequest struct {
-	IDs []string
+	TorrentID string
+	FileIDs   []string
 }
 
 type PrioritizeFilesRequest struct {

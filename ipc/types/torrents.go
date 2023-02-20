@@ -4,8 +4,8 @@ type CondensedTorrent struct {
 	Name            string
 	Path            string
 	FileNames       []string
-	BytesDownloaded uint32
-	BytesToDownload uint32
+	BytesDownloaded int64
+	TotalBytes      int64
 	// TODO: wawi continue this type
 }
 
