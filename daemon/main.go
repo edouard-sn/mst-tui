@@ -14,12 +14,11 @@ func must(err error, msg string) {
 }
 
 func main() {
-
 	types.RegisterEveryPayloadToGob()
 
 	server := &server.SocketServer{
 		SocketPath:    "/tmp/mst.sock",
-		ClientHandler: client.Handler,
+		ClientHandler: client.HandlerWithTorrentClientWrapper("placeholder"),
 	}
 	server.Start()
 	server.ManageClients()

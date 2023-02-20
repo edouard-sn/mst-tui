@@ -10,7 +10,7 @@ import (
 // This handler takes a channel as a parameter to communicate with the rest of your server.
 type SocketServer struct {
 	SocketPath    string
-	ClientHandler func(*chan interface{}, net.Conn) error // `chan interface{}` used here to do any kind of communication with the rest of the server's logic
+	ClientHandler func(net.Conn) error
 	sock          net.Listener
 }
 
@@ -33,9 +33,8 @@ func (l *SocketServer) ManageClients() {
 
 		go func(conn net.Conn) { // Go routine for each client
 			defer conn.Close()
-			c := make(chan interface{})
 
-			err := l.ClientHandler(&c, conn)
+			err := l.ClientHandler(conn)
 			if err != nil {
 				log.Printf("client err: %v", err)
 			}

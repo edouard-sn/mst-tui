@@ -7,19 +7,7 @@ import (
 	"net"
 )
 
-func HandleCommand(cmd *types.Packet, c *chan interface{}, conn net.Conn) error {
-	switch cmd.Payload.(type) {
-	case types.AddTorrentRequest:
-	case types.RemoveTorrentRequest:
-	case types.ListTorrentsRequest:
-	case types.SelectFilesToDownloadRequest:
-	case types.PrioritizeFilesRequest:
-	case types.SequentialDownloadRequest:
-	}
-	return nil
-}
-
-func Handler(c *chan interface{}, conn net.Conn) error {
+func handler(torrentClient string, conn net.Conn) error {
 	var message *types.Packet = nil
 
 	dec := gob.NewDecoder(conn)
@@ -31,7 +19,15 @@ func Handler(c *chan interface{}, conn net.Conn) error {
 				return err
 			}
 		} else {
-			HandleCommand(message, c, conn)
+			// handleCommand(conn)
 		}
 	}
+
+}
+
+func HandlerWithTorrentClientWrapper(torrentClient string) func(conn net.Conn) error {
+	return func(conn net.Conn) error {
+		return handler(torrentClient, conn)
+	}
+
 }
