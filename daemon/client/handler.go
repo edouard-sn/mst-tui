@@ -7,7 +7,7 @@ import (
 	"net"
 )
 
-func handler(torrentClient string, conn net.Conn) error {
+func handle(torrentClient string, conn net.Conn) error {
 	var message *types.Packet = nil
 
 	dec := gob.NewDecoder(conn)
@@ -19,7 +19,7 @@ func handler(torrentClient string, conn net.Conn) error {
 				return err
 			}
 		} else {
-			// handleCommand(conn)
+			HandleCommands(message, torrentClient, conn)
 		}
 	}
 
@@ -27,7 +27,6 @@ func handler(torrentClient string, conn net.Conn) error {
 
 func HandlerWithTorrentClientWrapper(torrentClient string) func(conn net.Conn) error {
 	return func(conn net.Conn) error {
-		return handler(torrentClient, conn)
+		return handle(torrentClient, conn)
 	}
-
 }

@@ -14,6 +14,7 @@ func must(err error, msg string) {
 }
 
 func main() {
+
 	types.RegisterEveryPayloadToGob()
 
 	server := &server.SocketServer{

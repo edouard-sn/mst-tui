@@ -13,5 +13,5 @@ const (
 
 type Packet struct {
 	CommandId []byte
-	Payload   interface{}
+	Payload   any
 }
