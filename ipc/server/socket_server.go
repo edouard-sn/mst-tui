@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// Minimal unix socket server that will run ClientHandler on every connected client.
+// Minimal generic unix socket server that will run ClientHandler on every connected client.
 type SocketServer struct {
 	SocketPath    string
 	ClientHandler func(net.Conn) error

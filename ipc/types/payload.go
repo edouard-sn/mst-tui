@@ -3,7 +3,8 @@ package types
 import "encoding/gob"
 
 type ResponsePayload struct {
-	Err error
+	CommandID [16]byte
+	Err       error
 }
 
 type AddTorrentRequest struct {
@@ -32,11 +33,12 @@ type SelectFilesToDownloadRequest struct {
 
 type PrioritizeFilesRequest struct {
 	ID        string
-	fileNames []string
+	FileNames []string
 }
 
 type SequentialDownloadRequest struct {
-	ID string
+	ID       string
+	FileName string
 }
 
 func RegisterEveryPayloadToGob() {
