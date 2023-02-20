@@ -1,1 +1,2 @@
-# mgtc
+# Minimal Streamable Torrents CLI
+
