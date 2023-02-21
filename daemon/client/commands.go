@@ -16,7 +16,7 @@ import (
 func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.Conn, enc *gob.Encoder) {
 	var res any
 
-	// TODO: See if reflect is worth it here
+	// TODO: See if reflect is not shit
 	slog.Debug("command recieved", "name", reflect.TypeOf(msg.Payload).Name())
 
 	switch msg.Payload.(type) {
@@ -61,11 +61,13 @@ func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.Add
 	if err != nil {
 		return res
 	}
-	slog.Debug("add torrent", "name", t.Name())
+	slog := slog.With("name", t.Name())
+	slog.Debug("add torrent")
 	<-t.GotInfo()
-	slog.Debug("got torrent info", "name", t.Name())
+	slog.Debug("got torrent info")
 	t.DownloadAll()
-	res.ID = t.InfoHash().String()[:16]
+
+	res.ID = t.InfoHash().String()
 	return
 }
 
@@ -88,16 +90,20 @@ func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) (res types.L
 	res.Torrents = make([]types.CondensedTorrent, len(torrents))
 
 	for i, t := range torrents {
-
-		filePaths := make([]string, len(t.Files()))
+		files := make([]types.CondensedFile, len(t.Files()))
 		for j, file := range t.Files() {
-			filePaths[j] = file.DisplayPath() // NOTE: Si dieu le veut c'est pas mal
-			slog.Debug("list torrent", "name", t.Name(), "file", filePaths[j])
+			files[j] = types.CondensedFile{
+				Name:            file.DisplayPath(),
+				BytesDownloaded: file.BytesCompleted(),
+				TotalBytes:      file.Length(),
+			}
+			// NOTE: Si dieu le veut c'est pas mal
+			slog.Debug("list torrent", "name", t.Name(), "file", files[j])
 		}
 
 		res.Torrents[i] = types.CondensedTorrent{
 			Name:            t.Name(),
-			FileNames:       filePaths, // good enough
+			Files:           files, // good enough
 			BytesDownloaded: t.BytesCompleted(),
 			TotalBytes:      t.Length(),
 		}
@@ -152,16 +158,22 @@ func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) (res t
 		}
 	}
 
+	if requestedFile == nil {
+		res.Err = errors.New("no file with name " + request.FileName)
+		return
+	}
+
+	// Store reader or goroutine in map[torrentID][fileName] to close it and check if it's already in seq
 	reader := requestedFile.NewReader()
 	go func() {
 		slog := slog.With("name", requestedTorrent.Name(), "file", requestedFile.DisplayPath())
-
 		slog.Debug("sequential download")
 		n, err := io.Copy(io.Discard, reader)
 		if err != nil {
 			slog.Error("sequential download", err)
+		} else {
+			slog.Debug("finished sequential download", "bytes-sequential", n, "bytes-total", requestedFile.Length())
 		}
-		slog.Debug("finished sequential download", "bytes", n)
 	}()
 	return
 }

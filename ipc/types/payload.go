@@ -1,6 +1,9 @@
 package types
 
-import "encoding/gob"
+import (
+	"encoding/gob"
+	"errors"
+)
 
 type ResponsePayload struct {
 	Err error
@@ -48,6 +51,7 @@ func RegisterEveryPayloadToGob() {
 	gob.Register(PrioritizeFilesRequest{})
 	gob.Register(SequentialDownloadRequest{})
 
+	gob.Register(errors.New("")) // NOTE: Maybe remove this and put string in ResponsePayload
 	gob.Register(ResponsePayload{})
 	gob.Register(AddTorrentResponse{})
 	gob.Register(ListTorrentsResponse{})

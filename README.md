@@ -19,7 +19,7 @@ This project is made only for fun, feel free to contribute if you feel like it
 - Selective files download
     - [ ] Daemon
     - [ ] TUI
-- Sequential download per file, maybe per torrent aswell
+- Sequential download per file, maybe per torrent aswell, and find a way to cancel it
     - [ ] Daemon
     - [ ] TUI
 - (configurable) Choose a software per extension and run the software on chosen file

@@ -1,11 +1,14 @@
 package types
 
-type CondensedTorrent struct {
+type CondensedFile struct {
 	Name            string
-	FileNames       []string
 	BytesDownloaded int64
 	TotalBytes      int64
-	// TODO: wawi continue this type
 }
 
-// TODO: File type
+type CondensedTorrent struct {
+	Name            string
+	Files           []CondensedFile
+	BytesDownloaded int64
+	TotalBytes      int64
+}
