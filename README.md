@@ -9,14 +9,6 @@ This'll probably be in dev for some time cause i'm very lazy
 
 This project is made only for fun, feel free to contribute if you feel like it
 
-## TODO:
-- Think about one TorrentClient per torrent.
-    - Pros:
-        - Different dataDir for each torrent
-        - No time to search for torrents
-        - No wrapper in main.go
-    - Cons:
-        - Sounds like an extremely shitty idea
 ## Goals
 - Add/Remove torrents
     - [ ] Daemon
