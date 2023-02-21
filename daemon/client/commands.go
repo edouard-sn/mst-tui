@@ -12,8 +12,8 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.Conn) {
-	enc := gob.NewEncoder(conn)
+// TODO: why not a class to have better parameter handling
+func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.Conn, enc *gob.Encoder) {
 	var res any
 
 	// TODO: See if reflect is worth it here

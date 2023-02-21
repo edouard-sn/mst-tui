@@ -23,7 +23,6 @@ func (l *SocketServer) Start() error {
 	return nil
 }
 
-// TODO: Way of
 func (l *SocketServer) ManageClients() {
 	for {
 		conn, err := l.sock.Accept() // Blocking

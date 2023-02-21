@@ -11,6 +11,7 @@ import (
 
 func handle(torrentClient *torrent.Client, conn net.Conn) error {
 	dec := gob.NewDecoder(conn)
+	enc := gob.NewEncoder(conn)
 
 	for {
 		message := &types.Packet{}
@@ -20,7 +21,7 @@ func handle(torrentClient *torrent.Client, conn net.Conn) error {
 			}
 			return err
 		}
-		go HandleCommands(message, torrentClient, conn)
+		go HandleCommands(message, torrentClient, conn, enc)
 	}
 
 }
