@@ -32,10 +32,12 @@ This project is made only for fun, feel free to contribute if you feel like it
     - [ ] TUI
 - (configurable) Choose a software per extension and run the software on chosen file
     - [ ] TUI
+- HeaderObfuscationPolicy RequiredPreffered
+    - [ ] Daemon
 
 ### If not lazy
 - Daemon:
     - Remember all torrents + verify data + continue downloading (lol)
-    - Option to delete torrent content
+    - Option to delete torrent content when deleting torrent
     - InfoHash/Magnet/URL
     - Keybindings

@@ -3,18 +3,21 @@ package client
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"io"
-	"log"
 	"mst-cli/ipc/types"
 	"net"
+	"reflect"
 
 	"github.com/anacrolix/torrent"
+	"golang.org/x/exp/slog"
 )
 
 func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.Conn) {
 	enc := gob.NewEncoder(conn)
 	var res any
+
+	// TODO: See if reflect is worth it here
+	slog.Debug("command recieved", "name", reflect.TypeOf(msg.Payload).Name())
 
 	switch msg.Payload.(type) {
 	case types.AddTorrentRequest:
@@ -31,9 +34,14 @@ func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.C
 		res = SequentialDownload(msg, torrentClient)
 	}
 
-	err := enc.Encode(res)
+	// NOTE: Should we send the packet in the "HandleCommand" function?
+	packet := &types.Packet{
+		CommandID: msg.CommandID,
+		Payload:   res,
+	}
+	err := enc.Encode(packet)
 	if err != nil {
-		fmt.Printf("are you fucking kidding me, gob.Encode failed: %v", err)
+		slog.Error("gob encode", err)
 	}
 }
 
@@ -48,14 +56,14 @@ func findTorrent(torrents []*torrent.Torrent, torrentID string) *torrent.Torrent
 
 func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.AddTorrentResponse) {
 	t, err := torrentClient.AddTorrentFromFile(msg.Payload.(types.AddTorrentRequest).Path)
-	res.CommandID = msg.CommandID
 
 	res.Err = err
 	if err != nil {
 		return res
 	}
-
+	slog.Debug("add torrent", "name", t.Name())
 	<-t.GotInfo()
+	slog.Debug("got torrent info", "name", t.Name())
 	t.DownloadAll()
 	res.ID = t.InfoHash().String()[:16]
 	return
@@ -64,13 +72,13 @@ func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.Add
 func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
 	request := msg.Payload.(types.RemoveTorrentRequest)
 	requestedTorrent := findTorrent(torrentClient.Torrents(), request.ID)
-	res.CommandID = msg.CommandID
 
 	if requestedTorrent == nil {
 		res.Err = errors.New("no torrend with ID " + request.ID)
 		return
 	}
 
+	slog.Debug("removed torrent", "name", requestedTorrent.Name())
 	requestedTorrent.Drop()
 	return
 }
@@ -78,20 +86,19 @@ func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.
 func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) (res types.ListTorrentsResponse) {
 	torrents := torrentClient.Torrents()
 	res.Torrents = make([]types.CondensedTorrent, len(torrents))
-	res.CommandID = msg.CommandID
 
 	for i, t := range torrents {
 
 		filePaths := make([]string, len(t.Files()))
 		for j, file := range t.Files() {
 			filePaths[j] = file.DisplayPath() // NOTE: Si dieu le veut c'est pas mal
+			slog.Debug("list torrent", "name", t.Name(), "file", filePaths[j])
 		}
 
-		receivedBytes := t.Stats().BytesReadData
 		res.Torrents[i] = types.CondensedTorrent{
 			Name:            t.Name(),
 			FileNames:       filePaths, // good enough
-			BytesDownloaded: (&receivedBytes).Int64(),
+			BytesDownloaded: t.BytesCompleted(),
 			TotalBytes:      t.Length(),
 		}
 	}
@@ -102,7 +109,6 @@ func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) (res types.L
 func SelectFilesToDownload(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
 	request := msg.Payload.(types.SelectFilesToDownloadRequest)
 	requestedTorrent := findTorrent(torrentClient.Torrents(), request.TorrentID)
-	res.CommandID = msg.CommandID
 
 	if requestedTorrent == nil {
 		res.Err = errors.New("no torrend with ID " + request.TorrentID)
@@ -131,7 +137,6 @@ func PrioritizeFiles(msg *types.Packet, torrentClient *torrent.Client) (res type
 func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
 	request := msg.Payload.(types.SequentialDownloadRequest)
 	requestedTorrent := findTorrent(torrentClient.Torrents(), request.ID)
-	res.CommandID = msg.CommandID
 
 	if requestedTorrent == nil {
 		res.Err = errors.New("no torrend with ID " + request.ID)
@@ -149,26 +154,14 @@ func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) (res t
 
 	reader := requestedFile.NewReader()
 	go func() {
-		log.Print("Starting sequential download for ", requestedTorrent.Name(), ":", requestedFile.FileInfo().Path)
+		slog := slog.With("name", requestedTorrent.Name(), "file", requestedFile.DisplayPath())
+
+		slog.Debug("sequential download")
 		n, err := io.Copy(io.Discard, reader)
 		if err != nil {
-			log.Printf("caught seq error: %v", err)
+			slog.Error("sequential download", err)
 		}
-		log.Print("Finished seq download for ", requestedTorrent.Name(), ":", requestedFile.FileInfo().Path, " ", n, "bytes downloaded")
+		slog.Debug("finished sequential download", "bytes", n)
 	}()
-
-	// NOTE: Naive method below
-	// NOTE: This will be fake sequential download, it will prioritize the 15 first percent of the download
-	// NOTE: I can probably make it work to prioritize along the way we'll see about all this
-	// for _, f := range requestedTorrent.Files() {
-	// 	if f.DisplayPath() == request.FileName {
-	// 		pieceBytesRatio := int64(requestedTorrent.NumPieces()) / requestedTorrent.Length()
-	// 		firstPiece := f.Offset() * pieceBytesRatio
-	// 		lastPiece := (f.Offset() + f.Length()) * pieceBytesRatio
-	// 		for i := firstPiece; i <= lastPiece*15/100; i++ {
-	// 			requestedTorrent.Piece(int(i)).SetPriority(torrent.PiecePriorityNow)
-	// 		}
-	// 	}
-	// }
 	return
 }

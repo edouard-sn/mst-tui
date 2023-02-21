@@ -14,11 +14,13 @@ func handle(torrentClient *torrent.Client, conn net.Conn) error {
 
 	for {
 		message := &types.Packet{}
-		if err := dec.Decode(message); err != nil && err != io.EOF {
+		if err := dec.Decode(message); err != nil {
+			if err == io.EOF {
+				return nil
+			}
 			return err
 		}
 		go HandleCommands(message, torrentClient, conn)
-		// TODO: Maybe tick wait
 	}
 
 }

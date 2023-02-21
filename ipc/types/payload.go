@@ -3,8 +3,7 @@ package types
 import "encoding/gob"
 
 type ResponsePayload struct {
-	CommandID [16]byte
-	Err       error
+	Err error
 }
 
 type AddTorrentRequest struct {
