@@ -11,4 +11,5 @@ type CondensedTorrent struct {
 	Files           []CondensedFile
 	BytesDownloaded int64
 	TotalBytes      int64
+	Seeding         bool
 }

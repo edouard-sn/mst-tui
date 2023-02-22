@@ -1,51 +1,52 @@
 package client
 
 import (
-	"encoding/gob"
 	"errors"
 	"io"
 	"mst-cli/ipc/types"
-	"net"
 	"reflect"
+	"time"
 
 	"github.com/anacrolix/torrent"
 	"golang.org/x/exp/slog"
 )
 
+type RequestManager struct {
+	torrentClient *torrent.Client
+}
+
 // TODO: why not a class to have better parameter handling
-func HandleCommands(msg *types.Packet, torrentClient *torrent.Client, conn net.Conn, enc *gob.Encoder) {
+func (rm *RequestManager) HandleRequest(msg *types.Packet) *types.Packet {
 	var res any
 
-	// TODO: See if reflect is not shit
-	slog.Debug("command recieved", "name", reflect.TypeOf(msg.Payload).Name())
+	beforeCommand := time.Now()
 
-	switch msg.Payload.(type) {
+	switch p := msg.Payload.(type) {
 	case types.AddTorrentRequest:
-		res = AddTorrent(msg, torrentClient)
+		res = rm.addTorrent(&p)
 	case types.RemoveTorrentRequest:
-		res = RemoveTorrent(msg, torrentClient)
+		res = rm.removeTorrent(&p)
 	case types.ListTorrentsRequest:
-		res = ListTorrents(msg, torrentClient)
+		res = rm.listTorrents(&p)
 	case types.SelectFilesToDownloadRequest:
-		res = SelectFilesToDownload(msg, torrentClient)
+		res = rm.selectFilesToDownload(&p)
 	case types.PrioritizeFilesRequest:
-		res = PrioritizeFiles(msg, torrentClient)
+		res = rm.prioritizeFiles(&p)
 	case types.SequentialDownloadRequest:
-		res = SequentialDownload(msg, torrentClient)
+		res = rm.sequentialDownload(&p)
 	}
 
-	// NOTE: Should we send the packet in the "HandleCommand" function?
-	packet := &types.Packet{
+	timeSpent := time.Since(beforeCommand)
+	// TODO: See if reflect is not shit
+	slog.Debug("command done", "name", reflect.TypeOf(msg.Payload).Name(), "duration", timeSpent)
+
+	return &types.Packet{
 		CommandID: msg.CommandID,
 		Payload:   res,
 	}
-	err := enc.Encode(packet)
-	if err != nil {
-		slog.Error("gob encode", err)
-	}
 }
 
-func findTorrent(torrents []*torrent.Torrent, torrentID string) *torrent.Torrent {
+func (rm *RequestManager) findTorrent(torrents []*torrent.Torrent, torrentID string) *torrent.Torrent {
 	for _, t := range torrents {
 		if t.InfoHash().String() == torrentID {
 			return t
@@ -54,29 +55,30 @@ func findTorrent(torrents []*torrent.Torrent, torrentID string) *torrent.Torrent
 	return nil
 }
 
-func AddTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.AddTorrentResponse) {
-	t, err := torrentClient.AddTorrentFromFile(msg.Payload.(types.AddTorrentRequest).Path)
-
+func (rm *RequestManager) addTorrent(request *types.AddTorrentRequest) (res types.AddTorrentResponse) {
+	t, err := rm.torrentClient.AddTorrentFromFile(request.Path)
 	res.Err = err
 	if err != nil {
 		return res
 	}
+
 	slog := slog.With("name", t.Name())
 	slog.Debug("add torrent")
+
 	<-t.GotInfo()
 	slog.Debug("got torrent info")
+
 	t.DownloadAll()
 
 	res.ID = t.InfoHash().String()
 	return
 }
 
-func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
-	request := msg.Payload.(types.RemoveTorrentRequest)
-	requestedTorrent := findTorrent(torrentClient.Torrents(), request.ID)
+func (rm *RequestManager) removeTorrent(request *types.RemoveTorrentRequest) (res types.ResponsePayload) {
+	requestedTorrent := rm.findTorrent(rm.torrentClient.Torrents(), request.ID)
 
 	if requestedTorrent == nil {
-		res.Err = errors.New("no torrend with ID " + request.ID)
+		res.Err = errors.New("no torrent with ID " + request.ID)
 		return
 	}
 
@@ -85,8 +87,8 @@ func RemoveTorrent(msg *types.Packet, torrentClient *torrent.Client) (res types.
 	return
 }
 
-func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) (res types.ListTorrentsResponse) {
-	torrents := torrentClient.Torrents()
+func (rm *RequestManager) listTorrents(_ *types.ListTorrentsRequest) (res types.ListTorrentsResponse) {
+	torrents := rm.torrentClient.Torrents()
 	res.Torrents = make([]types.CondensedTorrent, len(torrents))
 
 	for i, t := range torrents {
@@ -97,24 +99,22 @@ func ListTorrents(msg *types.Packet, torrentClient *torrent.Client) (res types.L
 				BytesDownloaded: file.BytesCompleted(),
 				TotalBytes:      file.Length(),
 			}
-			// NOTE: Si dieu le veut c'est pas mal
-			slog.Debug("list torrent", "name", t.Name(), "file", files[j])
 		}
 
 		res.Torrents[i] = types.CondensedTorrent{
 			Name:            t.Name(),
-			Files:           files, // good enough
+			Files:           files,
 			BytesDownloaded: t.BytesCompleted(),
 			TotalBytes:      t.Length(),
+			Seeding:         t.Seeding(),
 		}
 	}
 
 	return
 }
 
-func SelectFilesToDownload(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
-	request := msg.Payload.(types.SelectFilesToDownloadRequest)
-	requestedTorrent := findTorrent(torrentClient.Torrents(), request.TorrentID)
+func (rm *RequestManager) selectFilesToDownload(request *types.SelectFilesToDownloadRequest) (res types.ResponsePayload) {
+	requestedTorrent := rm.findTorrent(rm.torrentClient.Torrents(), request.TorrentID)
 
 	if requestedTorrent == nil {
 		res.Err = errors.New("no torrend with ID " + request.TorrentID)
@@ -135,21 +135,19 @@ OUTER:
 	return
 }
 
-func PrioritizeFiles(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
+func (rm *RequestManager) prioritizeFiles(msg *types.PrioritizeFilesRequest) (res types.ResponsePayload) {
 	// NOTE: Will probably fuck off for now
 	return types.ResponsePayload{}
 }
 
-func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) (res types.ResponsePayload) {
-	request := msg.Payload.(types.SequentialDownloadRequest)
-	requestedTorrent := findTorrent(torrentClient.Torrents(), request.ID)
+func (rm *RequestManager) sequentialDownload(request *types.SequentialDownloadRequest) (res types.ResponsePayload) {
+	requestedTorrent := rm.findTorrent(rm.torrentClient.Torrents(), request.ID)
 
 	if requestedTorrent == nil {
 		res.Err = errors.New("no torrend with ID " + request.ID)
 		return
 	}
 
-	// TODO : To test, and yes anacrolix, i'm going to use separate programs to stream it, fight me
 	var requestedFile *torrent.File
 	for _, f := range requestedTorrent.Files() {
 		if f.DisplayPath() == request.FileName {
@@ -163,7 +161,7 @@ func SequentialDownload(msg *types.Packet, torrentClient *torrent.Client) (res t
 		return
 	}
 
-	// Store reader or goroutine in map[torrentID][fileName] to close it and check if it's already in seq
+	// TODO: Store reader or goroutine in map[torrentID][fileName] to close it and check if it's already in seq
 	reader := requestedFile.NewReader()
 	go func() {
 		slog := slog.With("name", requestedTorrent.Name(), "file", requestedFile.DisplayPath())

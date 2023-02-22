@@ -11,7 +11,7 @@ This project is made only for fun, feel free to contribute if you feel like it
 
 ## Goals
 - Add/Remove torrents
-    - [ ] Daemon
+    - [X] Daemon
     - [ ] TUI
 - Pause/Resume torrent
     - [ ] Daemon
@@ -20,12 +20,10 @@ This project is made only for fun, feel free to contribute if you feel like it
     - [ ] Daemon
     - [ ] TUI
 - Sequential download per file, maybe per torrent aswell, and find a way to cancel it
-    - [ ] Daemon
+    - [ ] Daemon - Tested and works for files, need canceling now
     - [ ] TUI
 - (configurable) Choose a software per extension and run the software on chosen file
     - [ ] TUI
-- HeaderObfuscationPolicy RequiredPreffered
-    - [ ] Daemon
 
 ### If not lazy
 - Daemon:

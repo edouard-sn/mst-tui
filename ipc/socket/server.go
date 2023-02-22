@@ -1,4 +1,4 @@
-package server
+package socket
 
 import (
 	"net"
@@ -8,13 +8,13 @@ import (
 )
 
 // Minimal generic unix socket server that will run ClientHandler on every connected client.
-type SocketServer struct {
+type Server struct {
 	SocketPath    string
 	ClientHandler func(net.Conn) error
 	sock          net.Listener
 }
 
-func (l *SocketServer) Start() error {
+func (l *Server) Start() error {
 	sock, err := net.Listen("unix", l.SocketPath)
 	if err != nil {
 		return err
@@ -23,7 +23,7 @@ func (l *SocketServer) Start() error {
 	return nil
 }
 
-func (l *SocketServer) ManageClients() {
+func (l *Server) ManageClients() {
 	for {
 		conn, err := l.sock.Accept() // Blocking
 		if err != nil {
@@ -31,7 +31,6 @@ func (l *SocketServer) ManageClients() {
 			continue
 		}
 
-		// TODO: think if id for each client is a good idea
 		go func(conn net.Conn) { // Go routine for each client
 			defer conn.Close()
 
@@ -45,7 +44,7 @@ func (l *SocketServer) ManageClients() {
 	}
 }
 
-func (l *SocketServer) Close() {
+func (l *Server) Close() {
 	err := os.Remove(l.SocketPath)
 	if err != nil {
 		slog.Error("can't remove sock", err)

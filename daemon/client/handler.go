@@ -7,11 +7,15 @@ import (
 	"net"
 
 	"github.com/anacrolix/torrent"
+	"golang.org/x/exp/slog"
 )
 
 func handle(torrentClient *torrent.Client, conn net.Conn) error {
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
+	rm := &RequestManager{
+		torrentClient: torrentClient,
+	}
 
 	for {
 		message := &types.Packet{}
@@ -21,7 +25,13 @@ func handle(torrentClient *torrent.Client, conn net.Conn) error {
 			}
 			return err
 		}
-		go HandleCommands(message, torrentClient, conn, enc)
+		go func() {
+			res := rm.HandleRequest(message)
+			err := enc.Encode(res)
+			if err != nil {
+				slog.Error("gob encode", err)
+			}
+		}()
 	}
 
 }

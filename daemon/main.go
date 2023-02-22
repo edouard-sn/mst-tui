@@ -2,7 +2,7 @@ package main
 
 import (
 	"mst-cli/daemon/client"
-	"mst-cli/ipc/server"
+	"mst-cli/ipc/socket"
 	"mst-cli/ipc/types"
 	"os"
 
@@ -12,17 +12,17 @@ import (
 
 func main() {
 	initLogger()
-	torrentClient := initTorrentClient()
 
-	types.RegisterEveryPayloadToGob()
-
-	server := &server.SocketServer{
+	tClient := createTorrentClient()
+	server := &socket.Server{
 		SocketPath:    "/tmp/mst.sock",
-		ClientHandler: client.HandlerWithTorrentClientWrapper(torrentClient),
+		ClientHandler: client.HandlerWithTorrentClientWrapper(tClient),
 	}
+
 	must(server.Start(), "couldn't start server")
 	defer server.Close()
 
+	types.RegisterEveryPayloadToGob()
 	server.ManageClients()
 }
 
@@ -35,11 +35,12 @@ func initLogger() {
 	slog.SetDefault(slogger)
 }
 
-func initTorrentClient() *torrent.Client {
+func createTorrentClient() *torrent.Client {
 	cfg := torrent.NewDefaultClientConfig()
 	cfg.DataDir = os.TempDir()
-	torrentClient, err := torrent.NewClient(cfg) // NOTE: wawi look how many fucks we are giving for the config rn
-	must(err, "couldn't initialize torrent client:")
+	cfg.HeaderObfuscationPolicy.RequirePreferred = true // NOTE: Make it configurable later
+	torrentClient, err := torrent.NewClient(cfg)
+	must(err, "couldn't initialize torrent client")
 	return torrentClient
 }
 
