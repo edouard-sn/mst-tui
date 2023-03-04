@@ -3,19 +3,20 @@ package client
 import (
 	"encoding/gob"
 	"io"
+	"mst-cli/daemon/client/notification"
 	"mst-cli/ipc/types"
 	"net"
+	"reflect"
 
-	"github.com/anacrolix/torrent"
 	"golang.org/x/exp/slog"
 )
 
-func handle(torrentClient *torrent.Client, conn net.Conn) error {
+func handle(conn net.Conn, tr *TorrentRepository, nt *notification.Notifier) error {
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
-	rm := &RequestManager{
-		torrentClient: torrentClient,
-	}
+
+	nt.AddConn(conn, enc)
+	defer nt.RemoveConn(conn)
 
 	for {
 		message := &types.Packet{}
@@ -25,19 +26,25 @@ func handle(torrentClient *torrent.Client, conn net.Conn) error {
 			}
 			return err
 		}
+
 		go func() {
-			res := rm.HandleRequest(message)
-			err := enc.Encode(res)
+			msg, tellEverybody := tr.ProcessRequest(message)
+
+			if tellEverybody {
+				nt.GetNotifyAllChannel() <- notification.NotifyAllRequest{Message: msg}
+				return
+			}
+
+			err := enc.Encode(msg)
 			if err != nil {
-				slog.Error("gob encode", err)
+				slog.Error("gob encoding", err, "type", reflect.TypeOf(msg.Payload), "payload", msg.Payload)
 			}
 		}()
 	}
-
 }
 
-func HandlerWithTorrentClientWrapper(torrentClient *torrent.Client) func(conn net.Conn) error {
+func HandlerWrapper(tr *TorrentRepository, nt *notification.Notifier) func(net.Conn) error {
 	return func(conn net.Conn) error {
-		return handle(torrentClient, conn)
+		return handle(conn, tr, nt)
 	}
 }

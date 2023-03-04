@@ -2,11 +2,10 @@ package types
 
 import (
 	"encoding/gob"
-	"errors"
 )
 
 type ResponsePayload struct {
-	Err error
+	Err string
 }
 
 type AddTorrentRequest struct {
@@ -14,7 +13,8 @@ type AddTorrentRequest struct {
 }
 type AddTorrentResponse struct {
 	ResponsePayload
-	ID string
+	ID      string
+	Torrent CondensedTorrent
 }
 
 type RemoveTorrentRequest struct {
@@ -22,7 +22,6 @@ type RemoveTorrentRequest struct {
 }
 
 type ListTorrentsRequest struct{}
-
 type ListTorrentsResponse struct {
 	ResponsePayload
 	Torrents []CondensedTorrent
@@ -33,9 +32,21 @@ type SelectFilesToDownloadRequest struct {
 	FileIDs   []string
 }
 
+type FilePriorityName string
+
+const (
+	High   FilePriorityName = "high"
+	Medium FilePriorityName = "mid"
+	Low    FilePriorityName = "low"
+)
+
+type FilePriority struct {
+	FileName string
+	Priority FilePriorityName
+}
 type PrioritizeFilesRequest struct {
-	ID        string
-	FileNames []string
+	ID    string
+	Files []FilePriority
 }
 
 type SequentialDownloadRequest struct {
@@ -43,15 +54,23 @@ type SequentialDownloadRequest struct {
 	FileName string
 }
 
+type CancelSequentialDownloadRequest struct {
+	ID       string
+	FileName string
+}
+
+// Registers every payload types
 func RegisterEveryPayloadToGob() {
 	gob.Register(AddTorrentRequest{})
 	gob.Register(RemoveTorrentRequest{})
 	gob.Register(ListTorrentsRequest{})
 	gob.Register(SelectFilesToDownloadRequest{})
+	gob.Register(FilePriority{})
 	gob.Register(PrioritizeFilesRequest{})
 	gob.Register(SequentialDownloadRequest{})
+	gob.Register(CancelSequentialDownloadRequest{})
 
-	gob.Register(errors.New("")) // NOTE: Maybe remove this and put string in ResponsePayload
+	// gob.Register(errors.New("")) // NOTE: Maybe remove this and put string in ResponsePayload
 	gob.Register(ResponsePayload{})
 	gob.Register(AddTorrentResponse{})
 	gob.Register(ListTorrentsResponse{})
