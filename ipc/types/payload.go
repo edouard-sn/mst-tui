@@ -5,6 +5,7 @@ import (
 )
 
 type ResponsePayload struct {
+	// "error" is not marshallable with gob : https://github.com/golang/go/issues/23340
 	Err string
 }
 

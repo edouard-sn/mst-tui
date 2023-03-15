@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mst-cli/ipc"
 	"mst-cli/ipc/types"
 	"reflect"
 	"sync"
@@ -132,7 +133,7 @@ func (tp *TorrentRepository) torrentToCondensedTorrent(t *torrent.Torrent) types
 func (rp *TorrentRepository) addTorrent(request *types.AddTorrentRequest) (res types.AddTorrentResponse) {
 	t, err := rp.tClient.AddTorrentFromFile(request.Path)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return res
 	}
 
@@ -169,7 +170,7 @@ func (rp *TorrentRepository) addTorrent(request *types.AddTorrentRequest) (res t
 func (rp *TorrentRepository) removeTorrent(request *types.RemoveTorrentRequest) (res types.ResponsePayload) {
 	torrent, err := rp.getTorrentFromID(request.ID)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return
 	}
 
@@ -191,13 +192,13 @@ func (rp *TorrentRepository) listTorrents(_ *types.ListTorrentsRequest) (res typ
 func (rp *TorrentRepository) selectFilesToDownload(request *types.SelectFilesToDownloadRequest) (res types.ResponsePayload) {
 	t, err := rp.getTorrentFromID(request.TorrentID)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return
 	}
 
 	fileIndexMap, err := rp.getFileIndexMapFromID(request.TorrentID)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return
 	}
 
@@ -224,7 +225,7 @@ func (rp *TorrentRepository) selectFilesToDownload(request *types.SelectFilesToD
 func (rp *TorrentRepository) prioritizeFiles(request *types.PrioritizeFilesRequest) (res types.ResponsePayload) {
 	fileIndexMap, err := rp.getFileIndexMapFromID(request.ID)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return
 	}
 
@@ -279,18 +280,18 @@ func sequentialDownloadRoutine(ctx context.Context, fileIndex *FileIndex) {
 func (rp *TorrentRepository) sequentialDownload(request *types.SequentialDownloadRequest) (res types.ResponsePayload) {
 	fileIndexMap, err := rp.getFileIndexMapFromID(request.ID)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return
 	}
 	fileIndex, ok := fileIndexMap[request.FileName]
 
 	if !ok || fileIndex == nil {
-		res.Err = "no file with name " + request.FileName
+		res.Err = ipc.ErrFileNotFound
 		return
 	}
 
 	if fileIndex.seqReader != nil {
-		res.Err = "already in sequential mode"
+		res.Err = ipc.ErrAlreadyInTheRequestedState
 		return
 	}
 
@@ -306,7 +307,7 @@ func (rp *TorrentRepository) sequentialDownload(request *types.SequentialDownloa
 func (rp *TorrentRepository) cancelSequentialDownload(request *types.CancelSequentialDownloadRequest) (res types.ResponsePayload) {
 	fileIndexMap, err := rp.getFileIndexMapFromID(request.ID)
 	if err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 		return
 	}
 
@@ -328,7 +329,7 @@ func (rp *TorrentRepository) cancelSequentialDownload(request *types.CancelSeque
 
 	fileIndex.cancelReader(errors.New("cancelled sequential download"))
 	if err := fileIndex.seqReader.Close(); err != nil {
-		res.Err = err.Error()
+		res.Err = ipc.ErrInternal + err.Error()
 	}
 	return
 }
