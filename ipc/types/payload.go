@@ -70,7 +70,6 @@ func RegisterEveryPayloadToGob() {
 	gob.Register(SequentialDownloadRequest{})
 	gob.Register(CancelSequentialDownloadRequest{})
 
-	// gob.Register(errors.New("")) // NOTE: Maybe remove this and put string in ResponsePayload
 	gob.Register(ResponsePayload{})
 	gob.Register(AddTorrentResponse{})
 	gob.Register(ListTorrentsResponse{})

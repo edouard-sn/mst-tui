@@ -3,9 +3,12 @@ package main
 import (
 	"mst-cli/daemon/client"
 	"mst-cli/daemon/client/notification"
+	"mst-cli/ipc"
 	"mst-cli/ipc/socket"
 	"mst-cli/ipc/types"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/anacrolix/torrent"
 	"golang.org/x/exp/slog"
@@ -21,15 +24,24 @@ func main() {
 	go ntf.Listen()
 	defer ntf.Done()
 
+	sigs := make(chan os.Signal, 1)
+	defer close(sigs)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+
 	server := &socket.Server{
-		SocketPath:    "/tmp/mst.sock",
-		ClientHandler: client.HandlerWrapper(tRepo, ntf),
+		SocketPath:  ipc.SocketPath,
+		ClientLogic: client.HandlerWrapper(tRepo, ntf),
 	}
 
 	must(server.Start(), "couldn't start server")
-	defer server.Close()
+
+	go func() {
+		defer server.Close()
+		<-sigs
+	}()
 
 	types.RegisterEveryPayloadToGob()
+	slog.Info("managing")
 	server.ManageClients()
 }
 

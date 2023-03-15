@@ -1,4 +1,6 @@
-# Minimal Streamable Torrents CLI
+# Minimal Streamable Torrents TUI
+
+[MST](https://en.wiktionary.org/wiki/MST#French)
 
 This shit is so not finished
 
@@ -13,14 +15,14 @@ This project is made only for fun, feel free to contribute if you feel like it
 - Add/Remove torrents
     - [X] Daemon
     - [ ] TUI
-- Pause/Resume torrent
+- Pause/Resume torrent - use AllowDataDownload and store the state in the repo
     - [ ] Daemon
     - [ ] TUI
 - Selective files download
-    - [ ] Daemon
+    - [X] Daemon
     - [ ] TUI
 - Sequential download per file, maybe per torrent aswell, and find a way to cancel it
-    - [ ] Daemon - Tested and works for files, need canceling now
+    - [X] Daemon - Tested and works for files, need canceling now
     - [ ] TUI
 - (configurable) Choose a software per extension and run the software on chosen file
     - [ ] TUI

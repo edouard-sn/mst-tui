@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"io"
 	"mst-cli/ipc/types"
@@ -16,8 +17,9 @@ import (
 
 // Stores a pointer to the File and a pointer to the Reader that reads sequentially the File, nil if not in sequential mode
 type FileIndex struct {
-	file      *torrent.File
-	seqReader torrent.Reader
+	file         *torrent.File
+	seqReader    torrent.Reader
+	cancelReader context.CancelCauseFunc
 }
 
 // TorrentRepository is used to handle request made to the daemon
@@ -41,6 +43,7 @@ func (rp *TorrentRepository) ProcessRequest(msg *types.Packet) (response *types.
 	beforeCommand := time.Now()
 
 	response = &types.Packet{CommandID: msg.CommandID}
+	slog.Debug("command starting", "name", reflect.TypeOf(msg.Payload).Name())
 
 	switch p := msg.Payload.(type) {
 	case types.AddTorrentRequest:
@@ -247,13 +250,38 @@ func (rp *TorrentRepository) prioritizeFiles(request *types.PrioritizeFilesReque
 	return
 }
 
+func sequentialDownloadRoutine(ctx context.Context, fileIndex *FileIndex) {
+	var totalSeq int64
+	var err error
+	buffer := make([]byte, 4096*5)
+	requestedFile := fileIndex.file
+	reader := fileIndex.seqReader
+
+	slog := slog.With("name", fileIndex.file.Torrent().Name(), "file", requestedFile.DisplayPath())
+	slog.Debug("sequential download")
+
+	for {
+		n, err := reader.ReadContext(ctx, buffer)
+		totalSeq += int64(n)
+		if err != nil || n == 0 {
+			break
+		}
+	}
+
+	finished := (err == io.EOF)
+	if err != nil && !finished {
+		slog.Error("sequential download stopped", err)
+	} else {
+		slog.Debug("sequential download stopped", "bytes-dl-in-sequential", totalSeq, "file-total-bytes", requestedFile.Length(), "finished", finished)
+	}
+}
+
 func (rp *TorrentRepository) sequentialDownload(request *types.SequentialDownloadRequest) (res types.ResponsePayload) {
 	fileIndexMap, err := rp.getFileIndexMapFromID(request.ID)
 	if err != nil {
 		res.Err = err.Error()
 		return
 	}
-
 	fileIndex, ok := fileIndexMap[request.FileName]
 
 	if !ok || fileIndex == nil {
@@ -266,21 +294,12 @@ func (rp *TorrentRepository) sequentialDownload(request *types.SequentialDownloa
 		return
 	}
 
+	ctx, cancel := context.WithCancelCause(context.Background())
 	reader := fileIndex.file.NewReader()
 	fileIndex.seqReader = reader
-	go func() {
-		requestedFile := fileIndex.file
+	fileIndex.cancelReader = cancel
+	go sequentialDownloadRoutine(ctx, fileIndex)
 
-		slog := slog.With("name", fileIndex.file.Torrent().Name(), "file", requestedFile.DisplayPath())
-		slog.Debug("sequential download")
-
-		n, err := io.Copy(io.Discard, reader)
-		if err != nil {
-			slog.Error("sequential download", err)
-		} else {
-			slog.Debug("finished sequential download", "bytes-sequential", n, "bytes-total", requestedFile.Length())
-		}
-	}()
 	return
 }
 
@@ -307,6 +326,7 @@ func (rp *TorrentRepository) cancelSequentialDownload(request *types.CancelSeque
 	slog := slog.With("name", fileIndex.file.Torrent().Name(), "file", requestedFile.DisplayPath())
 	slog.Debug("cancel sequential download")
 
+	fileIndex.cancelReader(errors.New("cancelled sequential download"))
 	if err := fileIndex.seqReader.Close(); err != nil {
 		res.Err = err.Error()
 	}

@@ -22,6 +22,7 @@ func NewNotifier() *Notifier {
 		conns:    make(map[net.Conn]*gob.Encoder),
 		chAll:    make(chan NotifyAllRequest),
 		chSingle: make(chan NotifyRequest),
+		chStop:   make(chan int),
 		mu:       sync.Mutex{},
 	}
 }
@@ -75,7 +76,10 @@ func (nt *Notifier) GetStopChannel() chan int {
 }
 
 func (nt *Notifier) Done() {
-	nt.chStop <- 0
+	nt.chStop <- 1
+	close(nt.chAll)
+	close(nt.chSingle)
+	close(nt.chStop)
 }
 
 // Listen on the 3 channels :

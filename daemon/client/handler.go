@@ -6,17 +6,17 @@ import (
 	"mst-cli/daemon/client/notification"
 	"mst-cli/ipc/types"
 	"net"
-	"reflect"
-
-	"golang.org/x/exp/slog"
+	"sync"
 )
 
 func handle(conn net.Conn, tr *TorrentRepository, nt *notification.Notifier) error {
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
+	wg := sync.WaitGroup{}
 
 	nt.AddConn(conn, enc)
 	defer nt.RemoveConn(conn)
+	defer wg.Wait()
 
 	for {
 		message := &types.Packet{}
@@ -27,17 +27,15 @@ func handle(conn net.Conn, tr *TorrentRepository, nt *notification.Notifier) err
 			return err
 		}
 
+		wg.Add(1)
 		go func() {
-			msg, tellEverybody := tr.ProcessRequest(message)
+			defer wg.Done()
+			response, tellEverybody := tr.ProcessRequest(message)
 
 			if tellEverybody {
-				nt.GetNotifyAllChannel() <- notification.NotifyAllRequest{Message: msg}
-				return
-			}
-
-			err := enc.Encode(msg)
-			if err != nil {
-				slog.Error("gob encoding", err, "type", reflect.TypeOf(msg.Payload), "payload", msg.Payload)
+				nt.GetNotifyAllChannel() <- notification.NotifyAllRequest{Message: response}
+			} else { // This sounds stupid
+				nt.GetNotifyChannel() <- notification.NotifyRequest{Message: response, Conn: conn}
 			}
 		}()
 	}
