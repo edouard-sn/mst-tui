@@ -1,7 +1,5 @@
 # Minimal Streamable Torrents TUI
 
-[MST](https://en.wiktionary.org/wiki/MST#French)
-
 This shit is so not finished
 
 It basically is a daemon that downloads torrents for you and a cli client that does fancy stuff with the daemon.
